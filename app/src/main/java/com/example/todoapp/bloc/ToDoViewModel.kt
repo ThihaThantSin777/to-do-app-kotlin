@@ -1,32 +1,45 @@
 package com.example.todoapp.bloc
 
-import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.todoapp.data.database.DatabaseProvider
 import com.example.todoapp.data.Task
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
-class TodoViewModel : ViewModel() {
-    // Mutable state for the list of tasks, managing task data
-    private val _tasks = MutableStateFlow<List<Task>>(emptyList())
-    val tasks: StateFlow<List<Task>> = _tasks // Exposed immutable StateFlow
+class TodoViewModel(application: Application) : AndroidViewModel(application) {
+    private val taskDao = DatabaseProvider.getDatabase(application).taskDao()
 
-    private var nextId = 1 // Simple incremental ID generator for tasks
+    // Flow to observe the list of tasks in the UI
+    val tasks: Flow<List<Task>> = taskDao.getAllTasks()
 
-    // Add a new task
+    // Add a new task to the database
     fun addTask(name: String) {
-        val newTask = Task(id = nextId++, name = name)
-        _tasks.value += newTask
-    }
-
-    // Edit an existing task by ID
-    fun editTask(id: Int, newName: String) {
-        _tasks.value = _tasks.value.map { task ->
-            if (task.id == id) task.copy(name = newName) else task
+        val newTask = Task(name = name)
+        viewModelScope.launch {
+            taskDao.insertTask(newTask)
         }
     }
 
-    // Delete a task by ID
-    fun deleteTask(id: Int) {
-        _tasks.value = _tasks.value.filterNot { it.id == id }
+    // Update a task's name or completion status
+    fun updateTask(task: Task) {
+        viewModelScope.launch {
+            taskDao.updateTask(task)
+        }
+    }
+
+    // Delete a task from the database
+    fun deleteTask(task: Task) {
+        viewModelScope.launch {
+            taskDao.deleteTask(task)
+        }
+    }
+
+    // Toggle task completion status
+    fun toggleTaskCompletion(task: Task) {
+        val updatedTask = task.copy(completed = !task.completed)
+        updateTask(updatedTask)
     }
 }
